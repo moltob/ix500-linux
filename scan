@@ -1,0 +1,110 @@
+#!/bin/bash
+# scan - Quick scan from ScanSnap ix500 with OCR
+# Output: ~/Documents/scanner-inbox/scan-YYYY-MM-DD-HHMMSS.pdf
+#
+# Features:
+# - A4 page size
+# - Duplex (both sides)
+# - Color scan with auto-grayscale conversion
+# - Auto-skip blank pages (back sides)
+# - Multi-page batch to single PDF
+# - OCR with Dutch primary, English secondary
+# - Aggressive compression
+
+set -e
+
+# Auto-detect scanner device
+DEVICE=$(scanimage -L 2>/dev/null | grep -oP "fujitsu:ScanSnap iX500:\d+" | head -1)
+if [ -z "$DEVICE" ]; then
+    echo "Error: ScanSnap iX500 not found. Is it connected and powered on?"
+    exit 1
+fi
+
+OUTDIR="$HOME/Documents/scanner-inbox"
+TIMESTAMP=$(date '+%Y-%m-%d-%H%M%S')
+TMPDIR=$(mktemp -d)
+OUTFILE="$OUTDIR/scan-$TIMESTAMP.pdf"
+
+# Ensure output directory exists
+mkdir -p "$OUTDIR"
+
+# Optional: custom filename as argument
+if [ -n "$1" ]; then
+    OUTFILE="$OUTDIR/$1.pdf"
+fi
+
+cleanup() {
+    rm -rf "$TMPDIR"
+}
+trap cleanup EXIT
+
+echo "Scanning (duplex, color, A4)..."
+scanimage --device "$DEVICE" \
+    --format=tiff \
+    --resolution 300 \
+    --mode Color \
+    --source "ADF Duplex" \
+    --page-width 210 \
+    --page-height 297 \
+    --swskip 20 \
+    --swcrop=yes \
+    --swdespeck 2 \
+    --overscan On \
+    --prepick On \
+    --buffermode On \
+    --batch="$TMPDIR/page-%04d.tiff" \
+    --batch-count=-1 \
+    2>&1 | grep -v "^$" || true
+
+# Count scanned pages
+PAGECOUNT=$(ls -1 "$TMPDIR"/page-*.tiff 2>/dev/null | wc -l)
+
+if [ "$PAGECOUNT" -eq 0 ]; then
+    echo "No pages scanned (feeder empty?)"
+    exit 1
+fi
+
+echo "Scanned $PAGECOUNT page(s), detecting color..."
+
+# Auto-detect color vs grayscale for each page
+# Convert to grayscale if saturation is low (no significant color)
+COLOR_PAGES=0
+GRAY_PAGES=0
+for tiff in "$TMPDIR"/page-*.tiff; do
+    # Check color saturation - if mean saturation < 10%, convert to grayscale
+    saturation=$(magick "$tiff" -colorspace HSL -channel G -separate +channel -format "%[fx:mean*100]" info: 2>/dev/null || echo "0")
+    if (( $(echo "$saturation < 10" | bc -l) )); then
+        magick "$tiff" -colorspace Gray "$tiff"
+        GRAY_PAGES=$((GRAY_PAGES + 1))
+    else
+        COLOR_PAGES=$((COLOR_PAGES + 1))
+    fi
+done
+
+if [ "$GRAY_PAGES" -gt 0 ] && [ "$COLOR_PAGES" -gt 0 ]; then
+    echo "Mixed: $COLOR_PAGES color, $GRAY_PAGES grayscale"
+elif [ "$GRAY_PAGES" -gt 0 ]; then
+    echo "Converted to grayscale"
+else
+    echo "Color detected"
+fi
+
+echo "Running OCR..."
+
+# Combine TIFFs into single TIFF, then OCR
+# ocrmypdf only accepts one input file for multi-page
+magick "$TMPDIR"/page-*.tiff "$TMPDIR/combined.tiff"
+
+ocrmypdf "$TMPDIR/combined.tiff" "$OUTFILE" \
+    -l nld+eng \
+    --rotate-pages \
+    --rotate-pages-threshold 2 \
+    --deskew \
+    --clean \
+    -O 3 \
+    --jpeg-quality 60 \
+    --jbig2-lossy
+
+# Show final file size
+FILESIZE=$(ls -lh "$OUTFILE" | awk '{print $5}')
+echo "Done: $OUTFILE ($PAGECOUNT pages, $FILESIZE)"

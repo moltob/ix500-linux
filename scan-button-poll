@@ -1,0 +1,63 @@
+#!/bin/bash
+# scan-button-poll - Poll ScanSnap ix500 button and trigger scan
+# Designed to be started/stopped by udev on USB connect/disconnect
+
+POLL_INTERVAL=0.5
+DEBOUNCE=3
+
+# Path to scan script (adjust if installed elsewhere)
+SCAN_SCRIPT="$HOME/.local/bin/scan"
+
+log() {
+    echo "[$(date '+%H:%M:%S')] $1"
+}
+
+# Auto-detect scanner device
+detect_device() {
+    scanimage -L 2>/dev/null | grep -oP "fujitsu:ScanSnap iX500:\d+" | head -1
+}
+
+get_button_state() {
+    # Read scanner options, extract scan button state
+    scanimage --device "$DEVICE" -A 2>/dev/null | grep -oP '(?<=--scan\[=\(yes\|no\)\] \[)\w+' || echo "error"
+}
+
+DEVICE=$(detect_device)
+if [ -z "$DEVICE" ]; then
+    log "Error: ScanSnap iX500 not found"
+    exit 1
+fi
+
+log "Starting button poll for $DEVICE"
+
+# Wait for scanner to be ready
+sleep 2
+
+# Main polling loop
+while true; do
+    button_state=$(get_button_state)
+
+    if [ "$button_state" = "yes" ]; then
+        log "Button pressed! Starting scan..."
+
+        # Run the scan script
+        if "$SCAN_SCRIPT"; then
+            log "Scan completed successfully"
+            # Send desktop notification
+            notify-send -i scanner "Scan Complete" "Document saved to scanner-inbox" 2>/dev/null || true
+        else
+            log "Scan failed"
+            notify-send -u critical -i dialog-error "Scan Failed" "Check scanner and try again" 2>/dev/null || true
+        fi
+
+        # Debounce - wait before polling again to let button release
+        log "Waiting for button release..."
+        sleep "$DEBOUNCE"
+
+    elif [ "$button_state" = "error" ]; then
+        log "Scanner not responding, waiting..."
+        sleep 5
+    fi
+
+    sleep "$POLL_INTERVAL"
+done

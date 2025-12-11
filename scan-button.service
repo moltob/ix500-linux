@@ -1,0 +1,19 @@
+[Unit]
+Description=ScanSnap ix500 Button Polling Service
+Documentation=https://github.com/foxey/scanbdScanSnapIntegration
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/scan-button-poll
+Restart=on-failure
+RestartSec=5
+
+# Environment for desktop notifications and brew tools
+# Adjust paths if your setup differs
+Environment=DISPLAY=:0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TESSDATA_PREFIX=/home/linuxbrew/.linuxbrew/share/tessdata
+
+[Install]
+WantedBy=default.target
