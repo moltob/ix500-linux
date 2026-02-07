@@ -1,15 +1,13 @@
 #!/bin/bash
-# scan - Quick scan from ScanSnap ix500 with OCR
+# scan - Quick scan from ScanSnap ix500 to PDF
 # Output: ~/Documents/scanner-inbox/scan-YYYY-MM-DD-HHMMSS.pdf
 #
 # Features:
 # - A4 page size
 # - Duplex (both sides)
-# - Color scan with auto-grayscale conversion
 # - Auto-skip blank pages (back sides)
 # - Multi-page batch to single PDF
-# - OCR with Dutch primary, English secondary
-# - Aggressive compression
+# - Image-only PDF (OCR/correction can happen downstream)
 
 set -e
 
@@ -41,11 +39,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Scanning (duplex, color, A4)..."
+echo "Scanning (duplex, grayscale, A4)..."
 scanimage --device "$DEVICE" \
     --format=tiff \
     --resolution 300 \
-    --mode Color \
+    --mode Gray \
     --source "ADF Duplex" \
     --page-width 210 \
     --page-height 297 \
@@ -67,36 +65,14 @@ if [ "$PAGECOUNT" -eq 0 ]; then
     exit 1
 fi
 
-echo "Scanned $PAGECOUNT page(s), detecting color..."
-
-# Auto-detect color vs grayscale for each page
-# Convert to grayscale if saturation is low (no significant color)
-COLOR_PAGES=0
-GRAY_PAGES=0
-for tiff in "$TMPDIR"/page-*.tiff; do
-    # Check color saturation - if mean saturation < 10%, convert to grayscale
-    saturation=$(magick "$tiff" -colorspace HSL -channel G -separate +channel -format "%[fx:mean*100]" info: 2>/dev/null || echo "0")
-    if (( $(echo "$saturation < 10" | bc -l) )); then
-        magick "$tiff" -colorspace Gray "$tiff"
-        GRAY_PAGES=$((GRAY_PAGES + 1))
-    else
-        COLOR_PAGES=$((COLOR_PAGES + 1))
-    fi
-done
-
-if [ "$GRAY_PAGES" -gt 0 ] && [ "$COLOR_PAGES" -gt 0 ]; then
-    echo "Mixed: $COLOR_PAGES color, $GRAY_PAGES grayscale"
-elif [ "$GRAY_PAGES" -gt 0 ]; then
-    echo "Converted to grayscale"
-else
-    echo "Color detected"
-fi
+echo "Scanned $PAGECOUNT page(s)"
 
 echo "Creating PDF..."
 
 # Create a single multi-page, image-only PDF.
-# (OCR/correction happens server-side.)
-magick "$TMPDIR"/page-*.tiff "$OUTFILE"
+# Force 300 DPI metadata for predictable page sizing.
+# Use grayscale + lossless compression to preserve OCR detail.
+magick "$TMPDIR"/page-*.tiff -colorspace Gray -depth 8 -units PixelsPerInch -density 300 -compress Zip "$OUTFILE"
 
 # Show final file size
 FILESIZE=$(ls -lh "$OUTFILE" | awk '{print $5}')
