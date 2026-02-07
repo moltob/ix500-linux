@@ -92,21 +92,11 @@ else
     echo "Color detected"
 fi
 
-echo "Running OCR..."
+echo "Creating PDF..."
 
-# Combine TIFFs into single TIFF, then OCR
-# ocrmypdf only accepts one input file for multi-page
-magick "$TMPDIR"/page-*.tiff "$TMPDIR/combined.tiff"
-
-ocrmypdf "$TMPDIR/combined.tiff" "$OUTFILE" \
-    -l nld+eng \
-    --rotate-pages \
-    --rotate-pages-threshold 2 \
-    --deskew \
-    --clean \
-    -O 3 \
-    --jpeg-quality 60 \
-    --jbig2-lossy
+# Create a single multi-page, image-only PDF.
+# (OCR/correction happens server-side.)
+magick "$TMPDIR"/page-*.tiff "$OUTFILE"
 
 # Show final file size
 FILESIZE=$(ls -lh "$OUTFILE" | awk '{print $5}')
