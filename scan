@@ -14,15 +14,18 @@
 set -e
 
 # Auto-detect scanner device
-DEVICE=$(scanimage -L 2>/dev/null | grep -oP "fujitsu:ScanSnap iX500:\d+" | head -1)
-if [ -z "$DEVICE" ]; then
-    echo "Error: ScanSnap iX500 not found. Is it connected and powered on?"
-    exit 1
-fi
+# DEVICE=$(scanimage -L 2>/dev/null | grep -oP "fujitsu:ScanSnap iX500:\d+" | head -1)
+# if [ -z "$DEVICE" ]; then
+#     echo "Error: ScanSnap iX500 not found. Is it connected and powered on?"
+#     exit 1
+# fi
+
+# speed up by avoiding detection:
+DEVICE="fujitsu:ScanSnap iX500:1237052"
 
 OUTDIR="$HOME/Documents/scanner-inbox"
 TIMESTAMP=$(date '+%Y-%m-%d-%H%M%S')
-TMPDIR=$(mktemp -d)
+TMPDIR=$(mktemp -d -p "$HOME" ix500.XXXXXX)
 OUTFILE="$OUTDIR/scan-$TIMESTAMP.pdf"
 
 # Ensure output directory exists
