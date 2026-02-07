@@ -27,7 +27,8 @@ PAGE_HEIGHT_MM=$((297 + BLEED_MM))
 # speed up by avoiding detection:
 DEVICE="fujitsu:ScanSnap iX500:1237052"
 
-OUTDIR="$HOME/Documents/scanner-inbox"
+#OUTDIR="$HOME/Documents/scanner-inbox"
+OUTDIR="/mnt/paperless-consume"
 TIMESTAMP=$(date '+%Y-%m-%d-%H%M%S')
 TMPDIR=$(mktemp -d -p "$HOME" ix500.XXXXXX)
 OUTFILE="$OUTDIR/scan-$TIMESTAMP.pdf"
