@@ -11,6 +11,12 @@
 
 set -e
 
+# Some iX500 units/backends can clip a tiny amount on the right/bottom when
+# scanning exactly A4 dimensions. Add a small bleed margin to avoid cutoff.
+BLEED_MM=10
+PAGE_WIDTH_MM=$((210 + BLEED_MM))
+PAGE_HEIGHT_MM=$((297 + BLEED_MM))
+
 # Auto-detect scanner device
 # DEVICE=$(scanimage -L 2>/dev/null | grep -oP "fujitsu:ScanSnap iX500:\d+" | head -1)
 # if [ -z "$DEVICE" ]; then
@@ -45,8 +51,8 @@ scanimage --device "$DEVICE" \
     --resolution 300 \
     --mode Gray \
     --source "ADF Duplex" \
-    --page-width 210 \
-    --page-height 297 \
+    --page-width "$PAGE_WIDTH_MM" \
+    --page-height "$PAGE_HEIGHT_MM" \
     --swskip 20 \
     --swcrop=yes \
     --swdespeck 2 \
