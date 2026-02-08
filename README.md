@@ -65,6 +65,9 @@ systemctl --user enable scan-button.service
 ```
 
 ### 4. Install udev rule (for auto start on USB connect)
+
+Only neeeded if auto-detection is used.
+
 ```bash
 sudo cp 99-scansnap-ix500.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
